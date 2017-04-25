@@ -1,2 +1,2 @@
 transliterate
-Levenshtein
+Levenshtein-search

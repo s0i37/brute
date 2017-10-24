@@ -6,5 +6,6 @@
 // @run-at document-start
 // ==/UserScript==
 
+window.__alert = window.alert
 window.alert = function(mess) { console.log("alert( " + mess + " )") }
 console.info("alert() disable")

